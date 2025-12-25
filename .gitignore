@@ -4,3 +4,4 @@ WWWTable_Epidemics_20250709.csv
 df_raw.xlsx
 疾病名稱清理對照表.xlsx
 data/
+*.pyc
