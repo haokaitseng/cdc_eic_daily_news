@@ -18,6 +18,7 @@ from utils.disease_name_mapping import (
     dict_disease_name_mapping,
     dict_disease_name_mapping_en
 )
+from utils.clean_visitor_data import clean_visitor_data, get_processed_visitor_data
 
 def normalize_token(s):
     """
@@ -124,3 +125,12 @@ def run_daily_news_pipeline(epi_xlsx_path, tcdc_csv_path, country_xlsx_path, tra
     df['WHO_region_en'] = df['WHO_region'].map(who_region_map_en).fillna('Other')
 
     return df
+
+def run_full_pipeline(epi_xlsx_path, tcdc_csv_path, country_xlsx_path, transmission_xlsx_path, visitor_xlsx_path):
+    """
+    Runs both the daily news pipeline and the visitor data cleaning.
+    """
+    df_news = run_daily_news_pipeline(epi_xlsx_path, tcdc_csv_path, country_xlsx_path, transmission_xlsx_path)
+    df_visitors = clean_visitor_data(visitor_xlsx_path)
+    
+    return df_news, df_visitors
