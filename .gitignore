@@ -5,3 +5,4 @@ df_raw.xlsx
 疾病名稱清理對照表.xlsx
 data/
 *.pyc
+*.html
