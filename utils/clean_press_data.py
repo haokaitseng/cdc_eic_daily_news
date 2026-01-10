@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-def get_cleaned_press_data(file_path='data/新聞稿_20251229.xlsx'):
+def get_cleaned_press_data(file_path='data/新聞稿_20251229.xlsx', research_end_date = '2025-11-27'):
     """
     Reads news data from Excel, cleans the 'PublishTime' as date only,
     removes HTML tags from 'Content', drops the 'Name' column,
@@ -32,9 +32,11 @@ def get_cleaned_press_data(file_path='data/新聞稿_20251229.xlsx'):
     cols_to_drop = [c for c in ['Name'] if c in df_press.columns]
     
     # Identify unique rows based on the news metadata and content
-    # We keep the first occurrence of each unique news piece
     subset_cols = [c for c in ['PublishTime', 'Subject', 'Content'] if c in df_press.columns]
-    
     df_press_cleaned = df_press.drop(columns=cols_to_drop).drop_duplicates(subset=subset_cols)
+
+    end_date = pd.to_datetime(research_end_date).date()
+    df_press_cleaned = df_press_cleaned[df_press_cleaned['PublishTime'] <= end_date]
+
 
     return df_press_cleaned

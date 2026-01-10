@@ -6,3 +6,4 @@ df_raw.xlsx
 data/
 *.pyc
 *.html
+output/
