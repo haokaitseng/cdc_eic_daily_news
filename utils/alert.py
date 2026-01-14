@@ -30,8 +30,17 @@ def get_combined_travel_alerts(
     """
     # === 1. Read separately ===
     # Use encoding='utf-8-sig' to handle potential Chinese characters/BOM in files
-    df_hist = pd.read_csv(alert_history_path, encoding='utf-8-sig')
-    df_curr = pd.read_csv(alert_path, encoding='utf-8-sig')
+    def read_csv_with_fallback(file_path):
+        for enc in ['utf-8-sig', 'cp950']:
+            try:
+                return pd.read_csv(file_path, encoding=enc)
+            except UnicodeDecodeError:
+                continue
+        # If both fail, try one last resort 'latin1' or raise error
+        raise UnicodeDecodeError(f"Unable to read {file_path} with utf-8 or cp950.")
+    # === 1. Read separately === 
+    df_hist = read_csv_with_fallback(alert_history_path)
+    df_curr = read_csv_with_fallback(alert_path)
 
     df_hist["data_source"] = "TCDCTravelAlert_history"
     df_curr["data_source"] = "TCDCTravelAlert"
