@@ -20,41 +20,6 @@ def normalize_date_series(s, colname=""):
     # 去掉時區、只保留日期
     return parsed.dt.tz_localize(None).dt.date
 
-ALERT_DISEASE_MAP = {
-    # COVID-19
-    "嚴重特殊傳染性肺炎": "COVID-19",
-    "新冠併發重症": "COVID-19",
-
-    # Influenza
-    "新型A型流感": "新型A型流感",
-    "禽類禽流感": "新型A型流感",
-
-    # Mpox
-    "M痘": "M痘",
-
-    # Polio
-    "小兒麻痺症": "小兒麻痺症",
-    "小兒麻痺症/急性無力肢體麻痺": "小兒麻痺症",
-
-    # Vector-borne / others already in color map
-    "登革熱": "登革熱",
-    "霍亂": "霍亂",
-    "屈公病": "屈公病",
-    "伊波拉病毒感染": "伊波拉病毒感染",
-    "茲卡病毒感染症": "茲卡病毒感染症",
-    "麻疹": "麻疹",
-
-    # Everything else → other
-    "馬堡病毒出血熱": "馬堡病毒出血熱",
-    "拉薩熱": "拉薩熱",
-    "黃熱病": "黃熱病",
-    "德國麻疹": "德國麻疹",
-    "白喉": "白喉",
-    "瘧疾": "瘧疾",
-    "中東呼吸症候群冠狀病毒感染症": "中東呼吸症候群冠狀病毒感染症",
-}
-
-
 
 def get_combined_travel_alerts(
     alert_history_path="data/TCDCTravelAlert_history.csv",
@@ -99,12 +64,89 @@ def get_combined_travel_alerts(
     # === 5. Final sanity check ===
     #print(" Combined rows:", len(df_all))
     #print(" effective NaT ratio:", df_all["effective"].isna().mean())
+    return df_all
 
-    # 6. disease name mapping
-    df_all["alert_disease"] = (
-        df_all["alert_disease"]
-        .map(ALERT_DISEASE_MAP)
-        .fillna("其他疾病")
+
+def standardize_alert_disease(s: pd.Series) -> pd.Series:
+    """
+    Standardize alert_disease names to match the disease names
+    used in the color palette.
+    """
+
+    ALERT_DISEASE_MAP = {
+        # COVID-19
+        "嚴重特殊傳染性肺炎": "COVID-19",
+        "新冠併發重症": "COVID-19",
+
+        # Influenza
+        "新型A型流感": "新型A型流感",
+        "禽類禽流感": "新型A型流感",
+
+        # Mpox
+        "M痘": "M痘",
+
+        # Polio
+        "小兒麻痺症": "小兒麻痺症",
+        "小兒麻痺症/急性無力肢體麻痺": "小兒麻痺症",
+
+        # Vector-borne / others
+        "登革熱": "登革熱",
+        "霍亂": "霍亂",
+        "屈公病": "屈公病",
+        "伊波拉病毒感染": "伊波拉病毒感染",
+        "茲卡病毒感染症": "茲卡病毒感染症",
+        "麻疹": "麻疹",
+
+        # Other known diseases
+        "馬堡病毒出血熱": "馬堡病毒出血熱",
+        "拉薩熱": "拉薩熱",
+        "黃熱病": "黃熱病",
+        "德國麻疹": "德國麻疹",
+        "白喉": "白喉",
+        "瘧疾": "瘧疾",
+        "中東呼吸症候群冠狀病毒感染症": "中東呼吸症候群冠狀病毒感染症",
+    }
+
+    return (
+        s.astype(str)
+         .str.strip()
+         .map(ALERT_DISEASE_MAP)
+         .fillna("其他疾病")
     )
 
-    return df_all
+
+### new color map for alert diseases
+from matplotlib import cm
+import pandas as pd
+import numpy as np
+
+def build_travel_disease_color_map(
+    base_color_map,
+    alert_diseases,
+    other_color="#BDBDBD"
+):
+    color_map = dict(base_color_map)
+
+    alert_diseases = (
+        pd.Series(alert_diseases)
+        .dropna()
+        .unique()
+        .tolist()
+    )
+    alert_diseases = [d for d in alert_diseases if d != "其他疾病"]
+
+    missing = [d for d in alert_diseases if d not in color_map]
+
+    if not missing:
+        color_map["其他疾病"] = other_color
+        return color_map
+
+    # 用一個連續色盤，永遠夠
+    cmap = cm.get_cmap("viridis")
+    colors = cmap(np.linspace(0.15, 0.85, len(missing)))
+
+    for d, c in zip(missing, colors):
+        color_map[d] = tuple(c[:3])  # drop alpha
+
+    color_map["其他疾病"] = other_color
+    return color_map
