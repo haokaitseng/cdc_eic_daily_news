@@ -1,82 +1,59 @@
 import pandas as pd
 import os
+import numpy as np
 
-def get_cleaned_press_data(file_path='data/新聞稿_20251229.xlsx', research_end_date = '2025-11-27'):
+def get_cleaned_press_data(file_path='data/新聞稿_20251229_fill_until_20251231.xlsx', research_end_date='2025-12-31'):
     """
-    Reads news data from Excel, cleans the 'PublishTime' as date only,
-    removes HTML tags from 'Content', drops the 'Name' column,
-    and removes duplicate entries.
-    
-    Args:
-        file_path (str): Path to the Excel file.
-        
-    Returns:
-        pd.DataFrame: The cleaned dataframe.
+    Returns a DataFrame with columns: 'Index', 'PublishTime', 'Subject', 'Content', 'Name_merged', and 'Sampled'.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    # 1. Read the data
+    # 1. Load and Clean (Standard steps)
     df_press = pd.read_excel(file_path)
-
-    # 2. Clean 'PublishTime' as date only
     df_press['PublishTime'] = pd.to_datetime(df_press['PublishTime']).dt.date
+    df_press['Content'] = df_press['Content'].str.replace(r'<[^>]+>', '', regex=True).str.strip()
 
-    # 3. Remove HTML tags from 'Content'
-    # Use regex to find tags like <p>, <br />, etc.
-    if 'Content' in df_press.columns:
-        df_press['Content'] = df_press['Content'].str.replace(r'<[^>]+>', '', regex=True).str.strip()
-
-    # 4. Remove the 'Name' column and drop duplicates
-    # Expansion effect is removed by looking at core columns
-    cols_to_drop = [c for c in ['Name'] if c in df_press.columns]
-    
-    # Identify unique rows based on the news metadata and content
-    subset_cols = [c for c in ['PublishTime', 'Subject', 'Content'] if c in df_press.columns]
-    df_press_cleaned = df_press.drop(columns=cols_to_drop).drop_duplicates(subset=subset_cols)
-
+    # 2. Filter by date
     end_date = pd.to_datetime(research_end_date).date()
-    df_press_cleaned = df_press_cleaned[df_press_cleaned['PublishTime'] <= end_date]
+    df_press = df_press[df_press['PublishTime'] <= end_date]
 
+    # 3. Group and Merge names
+    df_press_cleaned = (
+        df_press.groupby(['PublishTime', 'Subject', 'Content'], as_index=False)['Name']
+        .apply(lambda x: '、'.join(x.unique()))
+    ).rename(columns={'Name': 'Name_merged'})
+
+    # 4. Add Sequential Index (1, 2, 3...)
+    # reset_index makes sure the numbers are continuous after the previous filtering/grouping
+    df_press_cleaned = df_press_cleaned.reset_index(drop=True)
+    df_press_cleaned['Index'] = df_press_cleaned.index + 1
+
+    # 4-2 date cleaning and heading merge
+    df_press_cleaned["PublishTime"] = pd.to_datetime(df_press_cleaned["PublishTime"], errors="coerce")
+
+    df_press_cleaned["year"] = df_press_cleaned["PublishTime"].dt.year
+
+    # 清理文字：把 Subject + Content 合併
+    df_press_cleaned["Subject"] = df_press_cleaned["Subject"].fillna("").astype(str).str.strip()
+    df_press_cleaned["Content"] = df_press_cleaned["Content"].fillna("").astype(str).str.strip()
+    df_press_cleaned["subject_content"] = (df_press_cleaned["Subject"] + "。 " + df_press_cleaned["Content"]).str.strip()
+
+    # 5. Add 'Sampled' column (200 random rows marked 1, others 0)
+    # We use random_state=4055 (the seed) to ensure reproducibility
+    df_press_cleaned['Sampled'] = 0
+    
+    # Ensure we don't try to sample more than what exists
+    sample_size = min(200, len(df_press_cleaned))
+    sampled_indices = df_press_cleaned.sample(n=sample_size, random_state=4055).index
+    
+    df_press_cleaned.loc[sampled_indices, 'Sampled'] = 1
+
+    # 6. human annotation
+    df_press_cleaned['flag_international_outbreak_human'] = np.nan
+
+    # Reorder columns for final output
+    cols = ['Index', 'PublishTime', 'Subject', 'Content', 'subject_content', 'Name_merged', 'Sampled','flag_international_outbreak_human']
+    df_press_cleaned = df_press_cleaned[cols]
 
     return df_press_cleaned
-
-
-##### Code below is not used, which can be used to retain the Name (disease names) column for further analysis, as long as the index number in Gemini analysis was extracted.
-# import pandas as pd
-# import os
-
-# def get_cleaned_press_data(file_path='data/新聞稿_20251229_fill_until_20251231.xlsx', research_end_date='2025-11-27'):
-#     """
-#     Returns a DataFrame with columns: 'PublishTime', 'Subject', 'Content', and 'Name_merged'.
-#     """
-#     if not os.path.exists(file_path):
-#         raise FileNotFoundError(f"File not found: {file_path}")
-
-#     # 1. Load raw data
-#     df_press = pd.read_excel(file_path)
-
-#     # 2. Convert PublishTime to date objects (removes time like 01:00)
-#     df_press['PublishTime'] = pd.to_datetime(df_press['PublishTime']).dt.date
-
-#     # 3. Strip HTML tags from Content
-#     df_press['Content'] = df_press['Content'].str.replace(r'<[^>]+>', '', regex=True).str.strip()
-
-#     # 4. Filter by the research end date
-#     end_date = pd.to_datetime(research_end_date).date()
-#     df_press = df_press[df_press['PublishTime'] <= end_date]
-
-#     # 5. Group by core content and merge names
-#     # This ensures that 'PublishTime', 'Subject', and 'Content' become the keys
-#     df_press_cleaned = (
-#         df_press.groupby(['PublishTime', 'Subject', 'Content'], as_index=False)['Name']
-#         .apply(lambda x: ', '.join(x.unique()))
-#     )
-
-#     # 6. Rename the aggregated column to Name_merged
-#     df_press_cleaned = df_press_cleaned.rename(columns={'Name': 'Name_merged'})
-
-#     # Reorder columns to match your exact request
-#     df_press_cleaned = df_press_cleaned[['PublishTime', 'Subject', 'Content', 'Name_merged']]
-
-#     return df_press_cleaned
